@@ -59,7 +59,6 @@ If these libraries are missing, the GUI will alert you via a yellow banner and l
 ---
 
 
-
 ## Release & Licensing Information
 
 * **Version:** 2.0.0
