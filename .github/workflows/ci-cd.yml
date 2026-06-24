@@ -1,0 +1,94 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linting Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Code Quality Linting (Syntax Check)
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 32-bit
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x86'
+
+      - name: Install PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build Standalone Windows Executable
+        shell: pwsh
+        run: |
+          pyinstaller --onefile --noconsole `
+            --collect-submodules cobra.mit `
+            --collect-submodules cobra.internal `
+            --collect-submodules cobra.model.top `
+            --collect-submodules cobra.modelimpl.top `
+            --collect-submodules cobra.model.pol `
+            --collect-submodules cobra.modelimpl.pol `
+            --collect-submodules cobra.model.fv `
+            --collect-submodules cobra.modelimpl.fv `
+            --collect-submodules cobra.model.l3ext `
+            --collect-submodules cobra.modelimpl.l3ext `
+            --collect-submodules cobra.model.bgp `
+            --collect-submodules cobra.modelimpl.bgp `
+            --collect-submodules cobra.model.ospf `
+            --collect-submodules cobra.modelimpl.ospf `
+            --collect-submodules cobra.model.eigrp `
+            --collect-submodules cobra.modelimpl.eigrp `
+            l3outbgp_GUI.py
+
+      - name: Save Build Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ACI-L3Out-Creator
+          path: dist/l3outbgp_GUI.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ACI-L3Out-Creator
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: l3outbgp_GUI.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
