@@ -69,7 +69,7 @@ jobs:
             --collect-submodules cobra.modelimpl.ospf `
             --collect-submodules cobra.model.eigrp `
             --collect-submodules cobra.modelimpl.eigrp `
-            l3outbgp_GUI.py
+            L3Out_GUI.py
 
       - name: Save Build Output
         uses: actions/upload-artifact@v4
