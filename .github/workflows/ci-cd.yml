@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ACI-L3Out-Creator
-          path: dist/l3outbgp_GUI.exe
+          path: dist/L3Out_GUI.exe
 
   release:
     needs: build
@@ -92,6 +92,6 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: l3outbgp_GUI.exe
+          files: L3Out_GUI.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
