@@ -239,18 +239,18 @@ class BGP_L3OutApp(tk.Tk):
         self.protocol_combo.bind("<<ComboboxSelected>>", self.on_protocol_change)
 
         # Protocol parameter dynamic entry
-        self.lbl_proto_param = ttk.Label(self.tab_general, text="BGP Domain ID (ASN):")
+        self.lbl_proto_param = ttk.Label(self.tab_general, text="BGP AS Number:")
         self.lbl_proto_param.grid(row=7, column=0, sticky=tk.W, pady=6, padx=(0, 10))
-        self.proto_param_var = tk.StringVar(value="10671")
-        self.proto_param_entry = ttk.Entry(self.tab_general, textvariable=self.proto_param_var)
+        self.proto_param_var = tk.StringVar(value="(Inherited from Route Reflector)")
+        self.proto_param_entry = ttk.Entry(self.tab_general, textvariable=self.proto_param_var, state="disabled")
         self.proto_param_entry.grid(row=7, column=1, sticky=tk.EW, pady=6)
 
     def on_protocol_change(self, event=None):
         proto = self.protocol_var.get()
         if proto == "BGP":
-            self.lbl_proto_param.config(text="BGP Domain ID (ASN):")
-            self.proto_param_var.set("10671")
-            self.proto_param_entry.config(state="normal")
+            self.lbl_proto_param.config(text="BGP AS Number:")
+            self.proto_param_var.set("(Inherited from Route Reflector)")
+            self.proto_param_entry.config(state="disabled")
             
             # Enable BGP Peer inputs on Interfaces tab
             self.entry_if_peer_ip.config(state="normal")
@@ -791,17 +791,20 @@ class BGP_L3OutApp(tk.Tk):
         # Protocol parameter checks
         ip_regex = r"^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$"
         proto = data["protocol"]
-        if proto in ["BGP", "EIGRP"]:
-            if not data["proto_param"].isdigit():
-                messagebox.showerror("Validation Error", f"{proto} Parameter (ASN) must be a numeric value.")
+        if proto == "EIGRP":
+            if not data["proto_param"] or not data["proto_param"].isdigit():
+                messagebox.showerror("Validation Error", "EIGRP AS Number parameter must be a numeric value.")
                 return None
         elif proto == "OSPF":
+            if not data["proto_param"]:
+                messagebox.showerror("Validation Error", "OSPF Area ID must be completed.")
+                return None
             is_ip = re.match(ip_regex, data["proto_param"])
             is_digit = data["proto_param"].isdigit()
             if not is_ip and not is_digit:
                 messagebox.showerror("Validation Error", "OSPF Area ID must be either a numeric value or an IP address format (e.g. 0.0.0.104).")
                 return None
-        elif proto == "Static":
+        elif proto == "Static" or proto == "BGP":
             # No dynamic routing parameters checked
             pass
 
@@ -899,23 +902,17 @@ class BGP_L3OutApp(tk.Tk):
         # Top level uni
         polUni = cobra.model.pol.Uni('')
         
+        # Create/Reference L3 Domain (l3extDomP) under uni
+        l3extDomP = cobra.model.l3ext.DomP(polUni, name=data["l3dom"])
+        
         # Tenant
         fvTenant = cobra.model.fv.Tenant(polUni, data["tenant"])
         
         # L3Out
         l3extOut = cobra.model.l3ext.Out(
             fvTenant, 
-            ownerKey=u'', 
             name=data["l3out"], 
-            descr=u'', 
-            extMngdBy=u'', 
-            mplsEnabled=u'no', 
-            targetDscp=u'unspecified', 
-            enforceRtctrl=u'export', 
-            ownerTag=u'', 
-            nameAlias=u'', 
-            userdom=u'all', 
-            annotation=u''
+            enforceRtctrl=u'export'
         )
 
         # Associate L3Out with L3Domain
@@ -923,43 +920,16 @@ class BGP_L3OutApp(tk.Tk):
         cobra.model.l3ext.RsL3DomAtt(l3extOut, tDn=l3dom_dn)
 
         # Associate L3Out with VRF (Ctx)
-        vrf_tdn = f"uni/tn-{data['tenant']}/ctx-{data['vrf']}"
-        vrf_trn = f"ctx-{data['vrf']}"
         cobra.model.l3ext.RsEctx(
             l3extOut, 
-            tRn=vrf_trn, 
-            tDn=vrf_tdn, 
-            extMngdBy=u'', 
-            rType=u'mo', 
-            tCl=u'fvCtx', 
-            tContextDn=u'', 
-            forceResolve=u'yes', 
-            userdom=u'all', 
-            tnFvCtxName=data["vrf"], 
-            tType=u'name', 
-            annotation=u''
+            tnFvCtxName=data["vrf"]
         )
         
         # Protocol-specific configuration
         proto = data["protocol"]
         if proto == "BGP":
-            bgpDomainIdAllocator = cobra.model.bgp.DomainIdAllocator(
-                l3extOut, 
-                domainId=data["proto_param"], 
-                name=u'', 
-                descr=u'', 
-                nameAlias=u''
-            )
-            cons_dn = f"uni/tn-{data['tenant']}/out-{data['l3out']}"
-            cobra.model.bgp.DomainIdCons(bgpDomainIdAllocator, consDn=cons_dn)
             cobra.model.bgp.ExtP(
-                l3extOut, 
-                name=u'bgp', 
-                descr=u'', 
-                extMngdBy=u'', 
-                userdom=u'all', 
-                nameAlias=u'', 
-                annotation=u''
+                l3extOut
             )
         elif proto == "OSPF":
             cobra.model.ospf.ExtP(
@@ -967,20 +937,13 @@ class BGP_L3OutApp(tk.Tk):
                 areaCtrl=u'redistribute,summary',
                 areaId=data["proto_param"],
                 areaType=u'nssa',
-                descr=u'',
                 multipodInternal=u'no',
-                nameAlias=u'',
-                areaCost=u'1',
-                annotation=u''
+                areaCost=u'1'
             )
         elif proto == "EIGRP":
-            cobra.model.eigrp.DomP(
+            cobra.model.eigrp.ExtP(
                 l3extOut,
-                name=u'eigrp',
-                asn=data["proto_param"],
-                descr=u'',
-                nameAlias=u'',
-                annotation=u''
+                asn=data["proto_param"]
             )
         # Static routing does not configure dynamic routing profile children
 
@@ -1060,7 +1023,7 @@ class BGP_L3OutApp(tk.Tk):
                 fabricExtCtrlPeering=u'no'
             )
 
-        return fvTenant
+        return fvTenant, l3extDomP
 
     def generate_clean_json(self, data):
         """Generates a clean, pretty-printed Cisco ACI JSON REST payload structure."""
@@ -1094,22 +1057,6 @@ class BGP_L3OutApp(tk.Tk):
         proto = data["protocol"]
         if proto == "BGP":
             l3out_children.append({
-                "bgpDomainIdAllocator": {
-                    "attributes": {
-                        "domainId": data["proto_param"]
-                    },
-                    "children": [
-                        {
-                            "bgpDomainIdCons": {
-                                "attributes": {
-                                    "consDn": f"uni/tn-{data['tenant']}/out-{data['l3out']}"
-                                }
-                            }
-                        }
-                    ]
-                }
-            })
-            l3out_children.append({
                 "bgpExtP": {
                     "attributes": {
                         "name": "bgp",
@@ -1130,7 +1077,7 @@ class BGP_L3OutApp(tk.Tk):
             })
         elif proto == "EIGRP":
             l3out_children.append({
-                "eigrpDomP": {
+                "eigrpExtP": {
                     "attributes": {
                         "name": "eigrp",
                         "asn": data["proto_param"]
@@ -1260,23 +1207,37 @@ class BGP_L3OutApp(tk.Tk):
             }
         })
         
-        # Combine into complete ACI REST Payload
+        # Combine into complete ACI REST Payload under polUni root
         payload = {
-            "fvTenant": {
-                "attributes": {
-                    "name": data["tenant"]
-                },
+            "polUni": {
+                "attributes": {},
                 "children": [
                     {
-                        "l3extOut": {
+                        "fvTenant": {
                             "attributes": {
-                                "name": data["l3out"],
-                                "mplsEnabled": "no",
-                                "targetDscp": "unspecified",
-                                "enforceRtctrl": "export",
-                                "userdom": "all"
+                                "name": data["tenant"]
                             },
-                            "children": l3out_children
+                            "children": [
+                                {
+                                    "l3extOut": {
+                                        "attributes": {
+                                            "name": data["l3out"],
+                                            "mplsEnabled": "no",
+                                            "targetDscp": "unspecified",
+                                            "enforceRtctrl": "export",
+                                            "userdom": "all"
+                                        },
+                                        "children": l3out_children
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "l3extDomP": {
+                            "attributes": {
+                                "name": data["l3dom"]
+                            }
                         }
                     }
                 ]
@@ -1408,11 +1369,12 @@ class BGP_L3OutApp(tk.Tk):
                     self.log("Push cancelled by user (L3Out already exists).")
                     return
 
-            fv_tenant_obj = self.build_cobra_tree(data)
+            fv_tenant_obj, l3ext_dom_obj = self.build_cobra_tree(data)
             self.log(f"Cobra Model object tree for {data['protocol']} built successfully.")
 
             config_req = cobra.mit.request.ConfigRequest()
             config_req.addMo(fv_tenant_obj)
+            config_req.addMo(l3ext_dom_obj)
             self.log("Committing changes to APIC...")
             md.commit(config_req)
             self.log("Transaction successfully committed to ACI fabric!")
