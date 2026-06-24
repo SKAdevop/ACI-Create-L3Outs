@@ -412,8 +412,9 @@ class BGP_L3OutApp(tk.Tk):
             self.after(0, lambda: messagebox.showinfo("Fetch Complete", "ACI Objects fetched and populated successfully!"))
 
         except Exception as e:
-            self.log(f"ERROR: Failed to fetch APIC objects: {str(e)}")
-            self.after(0, lambda: messagebox.showerror("Fetch Error", f"Failed to fetch ACI objects:\n{str(e)}"))
+            err_msg = str(e)
+            self.log(f"ERROR: Failed to fetch APIC objects: {err_msg}")
+            self.after(0, lambda msg=err_msg: messagebox.showerror("Fetch Error", f"Failed to fetch ACI objects:\n{msg}"))
         finally:
             self.after(0, lambda: self.btn_fetch.config(state="normal"))
 
@@ -1382,8 +1383,9 @@ class BGP_L3OutApp(tk.Tk):
             self.after(0, lambda: messagebox.showinfo("Success", f"{data['protocol']} ACI configuration pushed successfully!"))
 
         except Exception as e:
-            self.log(f"ERROR: Configuration push failed: {str(e)}")
-            self.after(0, lambda: messagebox.showerror("Push Error", f"Configuration push failed:\n{str(e)}"))
+            err_msg = str(e)
+            self.log(f"ERROR: Configuration push failed: {err_msg}")
+            self.after(0, lambda msg=err_msg: messagebox.showerror("Push Error", f"Configuration push failed:\n{msg}"))
 
 if __name__ == "__main__":
     app = BGP_L3OutApp()
