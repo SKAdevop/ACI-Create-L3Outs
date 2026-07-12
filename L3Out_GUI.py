@@ -181,8 +181,8 @@ class BGP_L3OutApp(tk.Tk):
             "Cisco ACI L3Out Creator\n"
             "Version 2.0.0\n\n"
             "Author: Shafie Afridi\n"
-            "Rights: © 2026 Shafie Afridi. All rights reserved.\n\n"
-            "A professional automated configuration engine for Cisco ACI fabrics using the Cobra SDK."
+            "Rights: © 2023 - 2025 Shafie Afridi. All rights reserved.\n\n"
+            "Automated Configuration engine for ACI fabrics using Python SDK (Cobra-SDK)."
         )
         messagebox.showinfo("About Application", about_text, parent=self)
 
